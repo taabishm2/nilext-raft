@@ -1,2 +1,2 @@
-# nilext-raft
-RAFT based KV-store with nil-externalization support
+# raft-kv-store
+Distributed, replicated key-value store built on top of the RAFT protocol

@@ -1,0 +1,54 @@
+syntax="proto3";
+
+service KVStore {
+    rpc Put(PutRequest) returns (PutResponse) {}
+    rpc MultiPut(MultiPutRequest) returns (PutResponse) {}
+    rpc Get(GetRequest) returns (GetResponse) {}
+    rpc MultiGet(MultiGetRequest) returns (MultiGetResponse) {}
+}
+
+message PutRequest {
+    string key=1;
+    string value=2;
+}
+
+message MultiPutRequest {
+    repeated PutRequest put_vector = 1;
+}
+
+message PutResponse {
+    string error=1;
+
+    bool is_redirect=2;
+    string redirect_server=3;
+}
+
+message GetRequest {
+    string key=1;
+}
+
+message MultiGetRequest {
+    repeated GetRequest get_vector = 1;
+}
+
+message MultiGetResponse {
+    repeated GetResult get_vector=1;
+
+    bool is_redirect=4;
+    string redirect_server=5;
+}
+
+message GetResult {
+    bool key_exists=1;
+    string key=2;
+    string value=3;
+}
+
+message GetResponse {
+    bool key_exists=1;
+    string key=2;
+    string value=3;
+
+    bool is_redirect=4;
+    string redirect_server=5;
+}

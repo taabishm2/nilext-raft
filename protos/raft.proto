@@ -1,0 +1,64 @@
+syntax="proto3";
+
+service RaftProtocol {
+  // RequestVote for raft leader node election.
+  rpc RequestVote(VoteRequest) returns (VoteResponse) {}
+
+  // AppendEntries for leader raft node to override/append its log entries into followers.
+  rpc AppendEntries(AERequest) returns (AEResponse) {}
+
+  rpc AddNode(NodeRequest) returns (NodeResponse) {}
+
+  rpc RemoveNode(NodeRequest) returns (NodeResponse) {}
+}
+
+message VoteRequest {
+  int64 term=1;
+  string candidate_id=2;
+  int64 last_log_index=3;
+  int64 last_log_term=4;
+}
+
+message VoteResponse {
+  int64 term=1;
+  bool vote_granted=2;
+  string error=3;
+}
+
+message WriteCommand {
+  string key=1;
+  string value=2;
+}
+
+message LogEntry {
+  int64 log_term = 1;
+  WriteCommand command = 2;
+}
+
+message AERequest {
+  int64 term=1;
+  string leader_id=2;
+  int64 start_index=3;
+  repeated LogEntry entries = 4;
+
+  int64 prev_log_index=5;
+  int64 prev_log_term=6;
+  
+  int64 leader_commit_index=7;
+  bool is_heart_beat = 8;
+  int64 commit_index = 9;
+}
+
+message AEResponse {
+  int64 term = 1;
+  bool is_success=2;
+  string error=3;
+}
+
+message NodeRequest {
+  string peer_ip=1;
+}
+
+message NodeResponse {
+  string error=1;
+}
