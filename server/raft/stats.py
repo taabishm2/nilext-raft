@@ -6,7 +6,7 @@ import shelve
 
 class Stats:
 
-    CAPTURE_STATS = True
+    CAPTURE_STATS = False
 
     def __init__(self):
         self.lock = Lock()
