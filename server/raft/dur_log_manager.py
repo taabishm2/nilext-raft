@@ -34,7 +34,8 @@ class DurLogManager:
         with open(RAFT_LOG_PATH, "rb") as log_file:
             self.entries = pickle.load(log_file)
 
-    def append(self, log_entry):
+    def append(self, request_type, key, value):
+        log_entry = DurLogEntry(request_type, key, value)
         with self.lock:
             log_me(f"Adding {log_entry.request_type} Entry to Durability Log")
             self.entries.append(log_entry)

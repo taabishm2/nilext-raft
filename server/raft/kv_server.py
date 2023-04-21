@@ -8,6 +8,7 @@ import grpc
 
 from .config import globals, NodeRole
 from .log_manager import *
+from .dur_log_manager import dur_log_manager
 from .node import raft_node
 from .utils import *
 from .stats import stats
@@ -23,9 +24,7 @@ class KVStoreServicer(kvstore_pb2_grpc.KVStoreServicer):
     def __init__(self):
         super().__init__()
         self.kv_store_lock = threading.Lock()
-        print("i'm staring memchahe wish me luckkkkk!!!!")
         self.client = base.Client(('localhost', 11211))
-
         self.sync_kv_store_with_logs()
 
     def sync_kv_store_with_logs(self):
@@ -44,24 +43,17 @@ class KVStoreServicer(kvstore_pb2_grpc.KVStoreServicer):
                 globals.set_last_applied(globals.commitIndex)
 
     def Put(self, request, context):
-        stats.add_kv_request("PUT")
         log_me(f"Put {request.key} {request.value}")
+        dur_log_manager.append("PUT", request.key, request.value)
 
-        if not globals.state == NodeRole.Leader:
-            log_me("Redirecting to leader: " + str(globals.leader_name))
-            return kvstore_pb2.PutResponse(error="Redirect", is_redirect=True, redirect_server=globals.leader_name)
+        # Code for RAFT without Nil-Ext:
+        # is_consensus, error = raft_node.serve_put_request(request.key, request.value)
+        # if is_consensus: self.sync_kv_store_with_logs()
+        # else: error = "No consensus was reached. Try again."
 
-        is_consensus, error = raft_node.serve_put_request(request.key, request.value)
+        return kvstore_pb2.PutResponse()
 
-        if is_consensus:
-            # This can be done in a separate thread.
-            self.sync_kv_store_with_logs()
-        else:
-            error = "No consensus was reached. Try again."
-
-        log_me(f"Consensus {is_consensus}, error {error}")
-        return kvstore_pb2.PutResponse(error=error)
-
+    # Not supported with Nil-ext at the moment
     def MultiPut(self, request, context):
         stats.add_kv_request("MULTI_PUT")
         log_me(f"Servicing MultiPut {request}")
