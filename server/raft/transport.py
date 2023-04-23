@@ -15,6 +15,7 @@ import raft_pb2_grpc
 from .config import NodeRole, globals, request_vote_rpc_lock
 
 from .log_manager import LogEntry, log_manager
+# from .dur_log_manager import dur_log_manager
 from .utils import *
 from .stats import stats
 
@@ -115,10 +116,6 @@ class RaftProtocolServicer(raft_pb2_grpc.RaftProtocolServicer):
             log_me(f"WARN: Received AppendEntry/heartbeat from a older node {request.leader_id}. Ignoring it!")
             return raft_pb2.AEResponse(is_success=False, term=globals.current_term)
         if not request.is_heart_beat: log_me(f"AppendEntries from {request.leader_id}")
-        # if globals.is_unresponsive:
-        #     log_me("Am going to sleepzzzz")
-        #     while True:
-        #         sleep(1)
 
         # TODO: if RPC term is valid, update globals.leader_name and globals.term (in case leadership changed)
         if request.is_heart_beat:
@@ -139,6 +136,10 @@ class RaftProtocolServicer(raft_pb2_grpc.RaftProtocolServicer):
 
         # AppendEntries RPC success.
         log_me(f"AppendEntries request success from {request.leader_id}, starting with {request.start_index}")
+
+        # Clear the entry pertaining to this request if present in my durability log
+        # dur_log_manager.clear_entry_from_durable_log(request.key, request.value)
+
         if globals.current_term <= request.term:
             # Update commit index sent by the leader
             globals.commitIndex = request.commit_index

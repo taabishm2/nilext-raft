@@ -86,6 +86,26 @@ class KVStoreServicer(kvstore_pb2_grpc.KVStoreServicer):
             log_me("Redirecting to leader: " + str(globals.leader_name))
             return kvstore_pb2.GetResponse(key_exists=False, is_redirect=True, redirect_server=globals.leader_name)
 
+        if (dur_log_manager.is_key_in_durable_log(request.key)):
+            # DO PUT WITH RAFT CONSENSUS!!!!
+            while(True):
+                entry = dur_log_manager.peek_head_entry()
+                is_consensus, error = raft_node.serve_put_request(entry.key, entry.value)
+                if is_consensus:
+                    self.sync_kv_store_with_logs()
+                    dur_log_manager.pop_head_entry()
+                else:
+                    error = "No consensus was reached. Try again."
+                    print(error)
+                    # what else to do here???? While will retry head again
+                    # return kvstore_pb2.GetResponse()
+                if (entry.key == request.key):
+                    # check if there are anymore entries in the durability log for this key
+                    print(f"Put key {request.key} from durability log with value {entry.value}")
+                    if (not dur_log_manager.is_key_in_durable_log(request.key)): break
+
+        # Put for Entry already executed
+        print("Put for Entry executed===")
         # Can be done in a separate thread.
         self.sync_kv_store_with_logs()
         if request.key == "FLUSH_CALL_STATS":
@@ -96,6 +116,7 @@ class KVStoreServicer(kvstore_pb2_grpc.KVStoreServicer):
             return kvstore_pb2.GetResponse(key_exists=cached_val is not None,
                                            key=request.key, value=cached_val)
 
+    # Not supported with Nil-ext at the moment
     def MultiGet(self, request, context):
         stats.add_kv_request(f"MULTI_GET {request}")
 

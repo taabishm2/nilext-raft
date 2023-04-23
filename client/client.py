@@ -79,13 +79,22 @@ def random_requests():
 def send_put(key, val):
     global NODE_IPS, LEADER_NAME
 
+    # supermajority = 𝑓 + ⌈𝑓 /2⌉ + 1
+    ft =  len(NODE_IPS) // 2
+    supermajority = ft + ft // 2 + 1
     LEADER_IP = NODE_IPS[LEADER_NAME]
+    for _, ip in list(NODE_IPS.items())[:supermajority]:
+    # print(key, value)
+    # for ip in NODE_IPS[0:supermajority]:
+        channel = grpc.insecure_channel(ip)
+        stub = kvstore_pb2_grpc.KVStoreStub(channel)
+        resp = stub.Put(kvstore_pb2.PutRequest(key=key, value=val))
+        print(f"PUT {key}:{val} sent! Response error:{resp.error}, redirect:{resp.is_redirect}, \
+            {resp.redirect_server}")
+    # Send to leader always
     channel = grpc.insecure_channel(LEADER_IP)
     stub = kvstore_pb2_grpc.KVStoreStub(channel)
-
     resp = stub.Put(kvstore_pb2.PutRequest(key=key, value=val))
-    # print(f"PUT {key}:{val} sent! Response error:{resp.error}, redirect:{resp.is_redirect}, \
-    #     {resp.redirect_server}")
     if resp.is_redirect:
         LEADER_NAME = resp.redirect_server
         return send_put(key, val)
@@ -170,8 +179,8 @@ def send_get(key):
     stub = kvstore_pb2_grpc.KVStoreStub(channel)
 
     resp = stub.Get(kvstore_pb2.GetRequest(key=key))
-    # print(f"GET {key} sent! Response:{resp.key_exists}, key:{resp.key}, val:{resp.value},\
-    #      redirect:{resp.is_redirect}, leader:{resp.redirect_server}")
+    print(f"GET {key} sent! Response:{resp.key_exists}, key:{resp.key}, val:{resp.value},\
+         redirect:{resp.is_redirect}, leader:{resp.redirect_server}")
 
     if resp.is_redirect:
         LEADER_NAME = resp.redirect_server
@@ -271,17 +280,17 @@ if __name__ == '__main__':
     send_put("Key43", "Val534")
     send_get("Key43")
 
-    send_put("Key6", "Val6")
-    send_get("Key6")
+    # send_put("Key6", "Val6")
+    # send_get("Key6")
 
     # send_add_node("server-4:4000")
 
-    send_put("Key3", "Val3")
-    send_get("Key1")
+    # send_put("Key3", "Val3")
+    # send_get("Key1")
 
-    send_put("Key2", "Val2")
-    send_get("Key2")
+    # send_put("Key2", "Val2")
+    # send_get("Key2")
 
-    send_remove_node("server-4:4000")
+    # send_remove_node("server-4:4000")
 
     print(f'Completed Client Process!')
