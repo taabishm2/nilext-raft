@@ -11,6 +11,7 @@ import kvstore_pb2_grpc
 import raft_pb2
 import raft_pb2_grpc
 from threading import Lock, Thread
+import concurrent.futures
 
 # Globals
 THREAD_COUNT = 1
@@ -36,6 +37,7 @@ NODE_LOCAL_PORT = {
     # "server-4": 'localhost:4003'
 }
 
+# Needs to be set manually.. sed. or does it need to be.
 LEADER_NAME = "server-1"
 
 def get_follower():
@@ -46,130 +48,59 @@ def get_follower():
     # All are leaders(?).
     return None
 
-def random_requests():
-    global REQ_TIMES
+def get_all_follower_ips():
+    node_ips = []
+    for node, ip in NODE_IPS.items():
+        if node != LEADER_NAME:
+            node_ips.append(ip)
+    
+    return node_ips
 
-    # ADDR = f'127.0.0.1:{PORT}'
-    channel = grpc.insecure_channel('localhost:5441')
-    stub = kvstore_pb2_grpc.KVStoreStub(channel)
+def send_put_ip(ip, key, val):
+    try:
+        # print(f"sending to ip {ip}")
+        channel = grpc.insecure_channel(ip)
+        stub = kvstore_pb2_grpc.KVStoreStub(channel)
+        resp = stub.Put(kvstore_pb2.PutRequest(key=key, value=val))
+    except Exception as e:
+        print(e)
 
-    for i in range(REQUEST_COUNT):
-        # Choosing key/value pair
-        thread_key = str(random.randint(1, 3))
-        thread_value = str(random.randint(1, 40))
+    return ip
 
-        # Choosing which request to send
-        run_set_num = random.choice([True, False])
-        if run_set_num:
-            t1 = time()
-            resp = stub.Put(kvstore_pb2.PutRequest(key=thread_key, value=thread_value))
-            t2 = time()
-            with LOCK:
-                REQ_TIMES.append(t2 - t1)
-
-        else:
-            t1 = time()
-            resp = stub.Get(kvstore_pb2.GetRequest(key=thread_key))
-            print(f'[LOG] for {thread_key}, got {resp.value} {resp.key_exists}')
-            t2 = time()
-            with LOCK:
-                REQ_TIMES.append(t2 - t1)
-
-
-def send_put(key, val):
+def send_nil_ext_put(key, val):
     global NODE_IPS, LEADER_NAME
+
+    LEADER_IP = NODE_IPS[LEADER_NAME]
+    # send_put_ip(LEADER_IP, key, val)
+
+    nodes = [LEADER_IP]
+    nodes.extend(get_all_follower_ips())
 
     # supermajority = 𝑓 + ⌈𝑓 /2⌉ + 1
     ft =  len(NODE_IPS) // 2
     supermajority = ft + ft // 2 + 1
-    LEADER_IP = NODE_IPS[LEADER_NAME]
-    for _, ip in list(NODE_IPS.items())[:supermajority]:
-    # print(key, value)
-    # for ip in NODE_IPS[0:supermajority]:
-        channel = grpc.insecure_channel(ip)
-        stub = kvstore_pb2_grpc.KVStoreStub(channel)
-        resp = stub.Put(kvstore_pb2.PutRequest(key=key, value=val))
-        print(f"PUT {key}:{val} sent! Response error:{resp.error}, redirect:{resp.is_redirect}, \
-            {resp.redirect_server}")
-    # Send to leader always
-    channel = grpc.insecure_channel(LEADER_IP)
-    stub = kvstore_pb2_grpc.KVStoreStub(channel)
-    resp = stub.Put(kvstore_pb2.PutRequest(key=key, value=val))
-    if resp.is_redirect:
-        LEADER_NAME = resp.redirect_server
-        return send_put(key, val)
-    else:
-        return resp
+    # print(f"wait for supermajority {supermajority}")
 
-def send_multi_put(keys, vals):
-    global NODE_IPS, LEADER_NAME
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+        # Launch 10 tasks in parallel
+        futures = [executor.submit(send_put_ip, ip, key, val) for ip in nodes]
 
-    LEADER_IP = NODE_IPS[LEADER_NAME]
-    channel = grpc.insecure_channel(LEADER_IP)
-    stub = kvstore_pb2_grpc.KVStoreStub(channel)
+        # Wait for at least super majority tasks to complete
+        completed_tasks = 0
+        leader_sent = False
+        done_ips = []
+        while not leader_sent or completed_tasks < supermajority:
+            done, not_done = concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_COMPLETED)
+            for future in done:
+                result = future.result()
+                if result not in done_ips:
+                    if result == LEADER_IP:
+                        leader_sent = True
+                    # print(f"Task {result} completed")
+                    completed_tasks += 1
+                    done_ips.append(result)
 
-    req = kvstore_pb2.MultiPutRequest()
-    for ii, _ in enumerate(keys):
-        req.put_vector.append(kvstore_pb2.PutRequest(key=keys[ii], value=vals[ii]))
-
-    resp = stub.MultiPut(req)
-    # print(f"redirect:{resp.is_redirect}, \
-    #     {resp.redirect_server}")
-    if resp.is_redirect:
-        LEADER_NAME = resp.redirect_server
-        return send_multi_put(keys, vals)
-    else:
-        return resp
-
-def best_effort_put(key, val):
-    global NODE_IPS, LEADER_NAME
-
-    for node in NODE_IPS:
-        print(f"Contacting {node}")
-        try:
-            LEADER_IP = NODE_IPS[node]
-            channel = grpc.insecure_channel(LEADER_IP)
-            stub = kvstore_pb2_grpc.KVStoreStub(channel)
-
-            resp = stub.Put(kvstore_pb2.PutRequest(key=key, value=val))
-            print(f"PUT {key}:{val} sent! Response error:{resp.error}, redirect:{resp.is_redirect}, \
-                {resp.redirect_server}")
-            if resp.is_redirect:
-                if LEADER_NAME != resp.redirect_server:
-                    LEADER_NAME = resp.redirect_server
-                    return send_put(key, val)
-                else:
-                    continue
-            else:
-                # Put succeeded.
-                LEADER_NAME = node
-                return None
-        except Exception as e:
-            print(f"{node} is down. Contacting another server")
-
-def best_effort_get(key):
-    global NODE_IPS, LEADER_NAME
-
-    for node in NODE_IPS:
-        print(f"Contacting {node}")
-        try:
-            LEADER_IP = NODE_IPS[node]
-            channel = grpc.insecure_channel(LEADER_IP)
-            stub = kvstore_pb2_grpc.KVStoreStub(channel)
-
-            resp = stub.Get(kvstore_pb2.GetRequest(key=key))
-            if resp.is_redirect:
-                if LEADER_NAME != resp.redirect_server:
-                    LEADER_NAME = resp.redirect_server
-                    return send_get(key)
-                else:
-                    continue
-            else:
-                # Put succeeded.
-                LEADER_NAME = node
-                return resp
-        except Exception as e:
-            print(f"{node} is down. Contacting another server")
+        print(f"PUT complete {key} {val}")
 
 def send_get(key):
     global NODE_IPS, LEADER_NAME
@@ -185,26 +116,6 @@ def send_get(key):
     if resp.is_redirect:
         LEADER_NAME = resp.redirect_server
         return send_get(key)
-    else:
-        return resp
-
-def send_mult_get(keys):
-    global NODE_IPS, LEADER_NAME
-
-    LEADER_IP = NODE_IPS[LEADER_NAME]
-    channel = grpc.insecure_channel(LEADER_IP)
-    stub = kvstore_pb2_grpc.KVStoreStub(channel)
-
-    req = kvstore_pb2.MultiGetRequest()
-    for key in keys:
-        req.get_vector.append(kvstore_pb2.GetRequest(key=key))
-    
-    # Make multi get request.
-    resp = stub.MultiGet(req)
-
-    if resp.is_redirect:
-        LEADER_NAME = resp.redirect_server
-        return send_mult_get(keys)
     else:
         return resp
 
@@ -236,49 +147,22 @@ def send_remove_node(peer_name):
 
 
 def basic_consistency_test():
-    # Try to get a value not written
-    resp = send_get("Key0")
-    # Send single put and 2 gets (one valid one invalid)
-    # send_put("Key1", "Val1")
+    # Send a batch of puts.
     for i in range(10):
-        send_put(f"Key{i}", f"Val{i}")
-    send_put("Key43", "Val534")
-    send_get("Key43")
+        send_nil_ext_put(f"Key{i}", f"Val{i}")
 
-    send_put("Key6", "Val6")
-    send_get("Key6")
-
-    # send_add_node("server-4:4000")
-
-    send_put("Key3", "Val3")
-    send_get("Key1")
-
-    send_put("Key2", "Val2")
-    send_get("Key2")
+    for i in range(10):
+        send_get(f"Key{i}")
 
 
 if __name__ == '__main__':
     counter = 0
     running_threads = []
 
-    # Spawn multiple threads and sent random get/put requests
-    # sleep(2)
-    #
-    # # Start all threads
-    # while counter < THREAD_COUNT:
-    #     t = Thread(target=random_requests)
-    #     t.start()
-    #     running_threads.append(t)
-    #     counter += 1
-    #
-    # # Wait for threads to finish running
-    # for t in running_threads:
-    #     t.join()
+    # send_nil_ext_put("Key4", "Val534")
+    # send_get("Key4")
 
-    # Send single put and 2 gets (one valid one invalid)
-    # send_put("Key1", "Val1")
-    send_put("Key43", "Val534")
-    send_get("Key43")
+    basic_consistency_test()
 
     send_put("Key43", "Val34")
     send_get("Key43")
@@ -289,15 +173,122 @@ if __name__ == '__main__':
 
     # send_put("Key6", "Val6")
     # send_get("Key6")
-
-    # send_add_node("server-4:4000")
-
-    # send_put("Key3", "Val3")
-    # send_get("Key1")
-
-    # send_put("Key2", "Val2")
-    # send_get("Key2")
-
-    # send_remove_node("server-4:4000")
-
     print(f'Completed Client Process!')
+
+# def send_put(key, val):
+#     global NODE_IPS, LEADER_NAME
+
+#     # supermajority = 𝑓 + ⌈𝑓 /2⌉ + 1
+#     ft =  len(NODE_IPS) // 2
+#     supermajority = ft + ft // 2 + 1
+#     LEADER_IP = NODE_IPS[LEADER_NAME]
+#     for _, ip in list(NODE_IPS.items())[:supermajority]:
+#     # print(key, value)
+#     # for ip in NODE_IPS[0:supermajority]:
+#         channel = grpc.insecure_channel(ip)
+#         stub = kvstore_pb2_grpc.KVStoreStub(channel)
+#         resp = stub.Put(kvstore_pb2.PutRequest(key=key, value=val))
+#         print(f"PUT {key}:{val} sent! Response error:{resp.error}, redirect:{resp.is_redirect}, \
+#             {resp.redirect_server}")
+#     # Send to leader always
+#     channel = grpc.insecure_channel(LEADER_IP)
+#     stub = kvstore_pb2_grpc.KVStoreStub(channel)
+#     resp = stub.Put(kvstore_pb2.PutRequest(key=key, value=val))
+#     if resp.is_redirect:
+#         LEADER_NAME = resp.redirect_server
+#         return send_put(key, val)
+#     else:
+#         return resp
+
+# def send_multi_put(keys, vals):
+#     global NODE_IPS, LEADER_NAME
+
+#     LEADER_IP = NODE_IPS[LEADER_NAME]
+#     channel = grpc.insecure_channel(LEADER_IP)
+#     stub = kvstore_pb2_grpc.KVStoreStub(channel)
+
+#     req = kvstore_pb2.MultiPutRequest()
+#     for ii, _ in enumerate(keys):
+#         req.put_vector.append(kvstore_pb2.PutRequest(key=keys[ii], value=vals[ii]))
+
+#     resp = stub.MultiPut(req)
+#     # print(f"redirect:{resp.is_redirect}, \
+#     #     {resp.redirect_server}")
+#     if resp.is_redirect:
+#         LEADER_NAME = resp.redirect_server
+#         return send_multi_put(keys, vals)
+#     else:
+#         return resp
+
+
+# some stuff, maybe useful later on.
+
+# def send_mult_get(keys):
+#     global NODE_IPS, LEADER_NAME
+
+#     LEADER_IP = NODE_IPS[LEADER_NAME]
+#     channel = grpc.insecure_channel(LEADER_IP)
+#     stub = kvstore_pb2_grpc.KVStoreStub(channel)
+
+#     req = kvstore_pb2.MultiGetRequest()
+#     for key in keys:
+#         req.get_vector.append(kvstore_pb2.GetRequest(key=key))
+    
+#     # Make multi get request.
+#     resp = stub.MultiGet(req)
+
+#     if resp.is_redirect:
+#         LEADER_NAME = resp.redirect_server
+#         return send_mult_get(keys)
+#     else:
+#         return resp
+
+# def best_effort_put(key, val):
+#     global NODE_IPS, LEADER_NAME
+
+#     for node in NODE_IPS:
+#         print(f"Contacting {node}")
+#         try:
+#             LEADER_IP = NODE_IPS[node]
+#             channel = grpc.insecure_channel(LEADER_IP)
+#             stub = kvstore_pb2_grpc.KVStoreStub(channel)
+
+#             resp = stub.Put(kvstore_pb2.PutRequest(key=key, value=val))
+#             print(f"PUT {key}:{val} sent! Response error:{resp.error}, redirect:{resp.is_redirect}, \
+#                 {resp.redirect_server}")
+#             if resp.is_redirect:
+#                 if LEADER_NAME != resp.redirect_server:
+#                     LEADER_NAME = resp.redirect_server
+#                     return send_put(key, val)
+#                 else:
+#                     continue
+#             else:
+#                 # Put succeeded.
+#                 LEADER_NAME = node
+#                 return None
+#         except Exception as e:
+#             print(f"{node} is down. Contacting another server")
+
+# def best_effort_get(key):
+#     global NODE_IPS, LEADER_NAME
+
+#     for node in NODE_IPS:
+#         print(f"Contacting {node}")
+#         try:
+#             LEADER_IP = NODE_IPS[node]
+#             channel = grpc.insecure_channel(LEADER_IP)
+#             stub = kvstore_pb2_grpc.KVStoreStub(channel)
+
+#             resp = stub.Get(kvstore_pb2.GetRequest(key=key))
+#             if resp.is_redirect:
+#                 if LEADER_NAME != resp.redirect_server:
+#                     LEADER_NAME = resp.redirect_server
+#                     return send_get(key)
+#                 else:
+#                     continue
+#             else:
+#                 # Put succeeded.
+#                 LEADER_NAME = node
+#                 return resp
+#         except Exception as e:
+#             print(f"{node} is down. Contacting another server")
