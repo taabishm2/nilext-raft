@@ -15,7 +15,7 @@ import raft_pb2_grpc
 from .config import NodeRole, globals, request_vote_rpc_lock
 
 from .log_manager import LogEntry, log_manager
-# from .dur_log_manager import dur_log_manager
+from .dur_log_manager import dur_log_manager
 from .utils import *
 from .stats import stats
 
@@ -138,7 +138,7 @@ class RaftProtocolServicer(raft_pb2_grpc.RaftProtocolServicer):
         log_me(f"AppendEntries request success from {request.leader_id}, starting with {request.start_index}")
 
         # Clear the entry pertaining to this request if present in my durability log
-        # dur_log_manager.clear_entry_from_durable_log(request.key, request.value)
+        dur_log_manager.clear_entry_from_durable_log(request.key, request.value)
 
         if globals.current_term <= request.term:
             # Update commit index sent by the leader

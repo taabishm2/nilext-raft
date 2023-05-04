@@ -280,6 +280,13 @@ if __name__ == '__main__':
     send_put("Key43", "Val534")
     send_get("Key43")
 
+    send_put("Key43", "Val34")
+    send_get("Key43")
+
+    send_put("Key1", "Val1")
+    send_get("Key1")
+    send_get("Key43")
+
     # send_put("Key6", "Val6")
     # send_get("Key6")
 

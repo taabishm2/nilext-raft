@@ -6,7 +6,7 @@ from threading import Thread
 from collections import deque
 
 from .config import NodeRole, globals
-from .node import raft_node
+# from .node import raft_node
 from .utils import *
 
 RAFT_BASE_DIR = './logs/logcache'
@@ -93,5 +93,7 @@ class DurLogManager:
         log_entry = DurLogEntry("PUT", key, value)
         if (log_entry in self.entries):
             self.entries.remove(log_entry)
+            with self.lock:
+                self.flush_log_to_disk()
 
 dur_log_manager = DurLogManager()
