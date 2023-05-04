@@ -58,7 +58,7 @@ def get_all_follower_ips():
 
 def send_put_ip(ip, key, val):
     try:
-        print(f"sending to ip {ip}")
+        # print(f"sending to ip {ip}")
         channel = grpc.insecure_channel(ip)
         stub = kvstore_pb2_grpc.KVStoreStub(channel)
         resp = stub.Put(kvstore_pb2.PutRequest(key=key, value=val))
@@ -73,13 +73,13 @@ def send_nil_ext_put(key, val):
     LEADER_IP = NODE_IPS[LEADER_NAME]
     # send_put_ip(LEADER_IP, key, val)
 
-    nodes = get_all_follower_ips()
-    nodes.append(LEADER_IP)
+    nodes = [LEADER_IP]
+    nodes.extend(get_all_follower_ips())
 
     # supermajority = 𝑓 + ⌈𝑓 /2⌉ + 1
     ft =  len(NODE_IPS) // 2
     supermajority = ft + ft // 2 + 1
-    print(f"wait for supermajority {supermajority}")
+    # print(f"wait for supermajority {supermajority}")
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
         # Launch 10 tasks in parallel
@@ -89,14 +89,18 @@ def send_nil_ext_put(key, val):
         completed_tasks = 0
         leader_sent = False
         done_ips = []
-        while not leader_sent and completed_tasks < supermajority:
+        while not leader_sent or completed_tasks < supermajority:
             done, not_done = concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_COMPLETED)
             for future in done:
                 result = future.result()
                 if result not in done_ips:
-                    print(f"Task {result} completed")
+                    if result == LEADER_IP:
+                        leader_sent = True
+                    # print(f"Task {result} completed")
                     completed_tasks += 1
                     done_ips.append(result)
+
+        print(f"PUT complete {key} {val}")
 
 def send_get(key):
     global NODE_IPS, LEADER_NAME
@@ -155,8 +159,10 @@ if __name__ == '__main__':
     counter = 0
     running_threads = []
 
-    send_nil_ext_put("Key4", "Val534")
-    send_get("Key4")
+    # send_nil_ext_put("Key4", "Val534")
+    # send_get("Key4")
+
+    basic_consistency_test()
 
     print(f'Completed Client Process!')
 
