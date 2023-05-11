@@ -5,7 +5,7 @@ from threading import Thread
 from .config import NodeRole, globals
 from .dur_log_manager import dur_log_manager
 from .node import raft_node
-
+from .utils import *
 
 class DurLogExecutor:
 
@@ -37,5 +37,3 @@ class DurLogExecutor:
                         print(error)
 
             time.sleep(1.5)
-
-dur_log_exec = DurLogExecutor()

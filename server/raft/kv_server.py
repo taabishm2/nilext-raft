@@ -46,12 +46,13 @@ class KVStoreServicer(kvstore_pb2_grpc.KVStoreServicer):
         log_me(f"Put {request.key} {request.value}")
         dur_log_manager.append("PUT", request.key, request.value)
 
-        # Code for RAFT without Nil-Ext:
-        # is_consensus, error = raft_node.serve_put_request(request.key, request.value)
-        # if is_consensus: self.sync_kv_store_with_logs()
-        # else: error = "No consensus was reached. Try again."
-
-        return kvstore_pb2.PutResponse()
+        if request.is_non_nil_ext is not None and request.is_non_nil_ext == True:
+            is_consensus, error = raft_node.serve_put_request(request.key, request.value)
+            if is_consensus: self.sync_kv_store_with_logs()
+            else: error = "No consensus was reached. Try again."
+            return kvstore_pb2.PutResponse(error=error)
+        else:
+            return kvstore_pb2.PutResponse()
 
     # Not supported with Nil-ext at the moment
     def MultiPut(self, request, context):
