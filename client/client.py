@@ -38,7 +38,7 @@ NODE_LOCAL_PORT = {
 }
 
 # Needs to be set manually.. sed. or does it need to be.
-LEADER_NAME = "server-1"
+LEADER_NAME = "server-2"
 
 def get_follower():
     for node in NODE_IPS:
@@ -67,7 +67,7 @@ def send_put_ip(ip, key, val):
 
     return ip
 
-def send_nil_ext_put(key, val):
+def send_nil_ext_put(key, val, logging=False):
     global NODE_IPS, LEADER_NAME
 
     LEADER_IP = NODE_IPS[LEADER_NAME]
@@ -100,9 +100,10 @@ def send_nil_ext_put(key, val):
                     completed_tasks += 1
                     done_ips.append(result)
 
+    if logging:
         print(f"PUT complete {key} {val}")
 
-def send_get(key):
+def send_get(key, logging=False):
     global NODE_IPS, LEADER_NAME
 
     LEADER_IP = NODE_IPS[LEADER_NAME]
@@ -110,8 +111,9 @@ def send_get(key):
     stub = kvstore_pb2_grpc.KVStoreStub(channel)
 
     resp = stub.Get(kvstore_pb2.GetRequest(key=key))
-    print(f"GET {key} sent! Response:{resp.key_exists}, key:{resp.key}, val:{resp.value},\
-         redirect:{resp.is_redirect}, leader:{resp.redirect_server}")
+    if logging:
+        print(f"GET {key} sent! Response:{resp.key_exists}, key:{resp.key}, val:{resp.value},\
+            redirect:{resp.is_redirect}, leader:{resp.redirect_server}")
 
     if resp.is_redirect:
         LEADER_NAME = resp.redirect_server
