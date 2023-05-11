@@ -64,7 +64,7 @@ class DurLogManager:
         with self.lock:
             log_me(f"Adding {log_entry.request_type} Entry to Durability Log")
             self.entries.append(log_entry)
-            self.flush_log_to_disk()
+            # self.flush_log_to_disk()
 
     # Returns entry at head of queue without removing it from the queue
     def peek_head_entry(self):
