@@ -229,28 +229,57 @@ def plot_put_throughput():
     plt.legend()
     plt.savefig(f'graphs/PUT-parallel-throughputs.png')
     plt.clf()
+    
+    
+    
+def plot_put_throughput_nilext():
+    fl3 = f'data/{NUM_SERVERS}-server-nilext-PUT-parallel-throughputs.pickle'
+    fl5 = f'data/{NUM_SERVERS}-server-PUT-parallel-throughputs.pickle'
+
+    x, y = [], []
+    with open(f"{fl3}", 'rb') as f:
+        x, y = pickle.load(f)
+    plt.figure(dpi=200)
+    plt.plot(x, y, label="Nilext")
+
+    x, y = [], []
+    with open(f"{fl5}", 'rb') as f:
+        x, y = pickle.load(f)
+
+    plt.plot(x, y, label="Non-nilext")
+
+    plt.title("Throughput vs concurrent PUT request count")
+    plt.xlabel("Count of concurrent requests")
+    plt.ylabel("Observed throughput (req/s)")
+    plt.legend()
+    plt.savefig(f'graphs/PUT-parallel-throughputs.png')
+    plt.clf()
 
 
-def plot_put_latency_3_server():
+def plot_put_latency_3_server(nilext=""):
     x, low, mid, high = [], [], [], []
 
-    with open(f'data/3-server-PUT-parallel-min-latency.pickle', 'rb') as f:
+    with open(f'data/{NUM_SERVERS}-server{nilext}-PUT-parallel-min-latency.pickle', 'rb') as f:
         x, low = pickle.load(f)
-    with open(f'data/3-server-PUT-parallel-median-latency.pickle', 'rb') as f:
+    with open(f'data/{NUM_SERVERS}-server{nilext}-PUT-parallel-median-latency.pickle', 'rb') as f:
         x, mid = pickle.load(f)
-    with open(f'data/3-server-PUT-parallel-max-latency.pickle', 'rb') as f:
+    with open(f'data/{NUM_SERVERS}-server{nilext}-PUT-parallel-max-latency.pickle', 'rb') as f:
         x, high = pickle.load(f)
 
     plt.figure(dpi=200)
     plt.plot(x, low, label="1 percentile")
-    plt.plot(x, smoothen_old(mid), label="Median")
-    plt.plot(x, smoothen(high, 11, 7), label="99 percentile")
+    plt.plot(x, mid, label="Median")
+    plt.plot(x, high, label="99 percentile")
+    
+    print(low)
+    print(mid)
+    print(high)
 
     plt.title("Latency vs concurrent PUT request count")
     plt.xlabel("Count of concurrent requests")
     plt.ylabel("Observed latency (sec)")
     plt.legend()
-    plt.savefig(f'graphs/3serve-PUT-parallel-latency.png')
+    plt.savefig(f'graphs/{NUM_SERVERS}serve{nilext}-PUT-parallel-latency.png')
     plt.clf()
 
 
@@ -841,7 +870,7 @@ def smoothen(y, window_size, order, deriv=0, rate=1):
 
 def collect_put_lat_thrp_nilext():
     latencies, batch_throughputs = [], []
-    for thread_count in range(1, 500, 15):
+    for thread_count in range(1, 500, 50):
         restart_cluster()
         batch = []
         print(f"Testing PUT with {thread_count} threads")
@@ -857,7 +886,7 @@ def collect_put_lat_thrp_nilext():
         latencies.append((thread_count, batch))
         
     nilext_latencies, nilext_batch_throughputs = [], []
-    for thread_count in range(1, 500, 15):
+    for thread_count in range(1, 500, 50):
         restart_cluster()
         batch = []
         print(f"Testing NILEXT PUT with {thread_count} threads")
@@ -898,10 +927,10 @@ def collect_put_lat_thrp_nilext():
                   len(i[1]), np.percentile(i[1], 99)) for i in nilext_latencies]
 
     with open(f'data/{NUM_SERVERS}-server-nilext-PUT-parallel-min-latency.pickle', 'wb') as f:
-        pickle.dump((x, [y[1] for y in latencies]), f)
+        pickle.dump((x, [y[1] for y in nilext_latencies]), f)
 
     with open(f'data/{NUM_SERVERS}-server-nilext-PUT-parallel-median-latency.pickle', 'wb') as f:
-        pickle.dump((x, [y[2] for y in latencies]), f)
+        pickle.dump((x, [y[2] for y in nilext_latencies]), f)
 
     with open(f'data/{NUM_SERVERS}-server-nilext-PUT-parallel-max-latency.pickle', 'wb') as f:
         pickle.dump((x, [y[3] for y in nilext_latencies]), f)
@@ -918,9 +947,11 @@ if __name__ == "__main__":
     # collect_put_lat_thrp()
     # # plot_put_latency_3_server()
 
-    restart_cluster()
-    collect_put_lat_thrp_nilext()
+    # restart_cluster()
+    # collect_put_lat_thrp_nilext()
     # plot_put_latency_3_server()
+    # plot_put_latency_3_server("-nilext")
+    plot_put_throughput_nilext()
 
     # restart_cluster()
     # collect_put_lat_thrp_nr()

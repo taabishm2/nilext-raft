@@ -78,7 +78,7 @@ def send_put_for_val(key, val):
     return resp
 
 
-def send_put(key, val, is_not_nil_ext=True):
+def send_put(key, val, is_non_nil_ext=True):
     global NODE_IPS, LEADER_NAME
 
     LEADER_IP = NODE_IPS[LEADER_NAME]
@@ -86,7 +86,7 @@ def send_put(key, val, is_not_nil_ext=True):
     stub = kvstore_pb2_grpc.KVStoreStub(channel)
 
     t1 = time()
-    resp = stub.Put(kvstore_pb2.PutRequest(key=key, value=val))
+    resp = stub.Put(kvstore_pb2.PutRequest(key=key, value=val, is_non_nil_ext=is_non_nil_ext))
     t2 = time()
 
     # print(f"PUT {key}:{val} sent! Response error:{resp.error}, redirect:{resp.is_redirect}, \
