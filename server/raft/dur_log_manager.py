@@ -1,6 +1,7 @@
 import time
 import os
 import pickle
+import shelve
 from threading import Lock
 from threading import Thread
 from collections import deque
@@ -27,8 +28,8 @@ class DurLogManager:
         self.entries = deque()  # Queue of DurLogEntry objects
         self.load_entries()  # Load entries from stable store to memory.
         
-        self.log_exec_thread = Thread(target=self.init_log_exec)
-        self.log_exec_thread.start()
+        # self.log_exec_thread = Thread(target=self.init_log_exec)
+        # self.log_exec_thread.start()
 
     def load_entries(self):
         if not os.path.exists(RAFT_BASE_DIR):
@@ -37,8 +38,15 @@ class DurLogManager:
         if not os.path.exists(RAFT_LOG_DB_PATH):
             self.flush_log_to_disk()  # Create empty log file
 
-        with open(RAFT_LOG_PATH, "rb") as log_file:
-            self.entries = pickle.load(log_file)
+        log_shelf = shelve.open(RAFT_LOG_PATH)
+        num_entries = log_shelf["SHELF_SIZE"]
+        log_me(f'{log_shelf.keys()} {log_shelf["SHELF_SIZE"]}')
+        self.entries = [log_shelf[str(i)] for i in range(num_entries)]
+        log_me(f'Loaded {num_entries} log entries from disk')
+        log_shelf.close()
+
+        # with open(RAFT_LOG_PATH, "rb") as log_file:
+        #     self.entries = pickle.load(log_file)
 
     def init_log_exec(self):
         #  Periodically execute entries from durability log.
@@ -76,12 +84,21 @@ class DurLogManager:
     # Call this once request at head has been executed (after consensus, if relevant)
     def pop_head_entry(self):
         with self.lock:
-            self.entries.popleft()
+            self.entries.pop(0)
             self.flush_log_to_disk()
 
     def flush_log_to_disk(self):
-        with open(RAFT_LOG_PATH, 'wb') as file:
-            pickle.dump(self.entries, file)
+        log_file = shelve.open(RAFT_LOG_PATH)
+        log_me("opened shelf")
+        if len(self.entries) == 0:
+            log_file["SHELF_SIZE"] = 0
+        else:
+            log_file[str(log_file["SHELF_SIZE"])] = self.entries[-1]
+            log_file["SHELF_SIZE"] += 1
+        log_file.close()
+
+        # with open(RAFT_LOG_PATH, 'wb') as file:
+        #     pickle.dump(self.entries, file)
 
     def is_key_in_durable_log(self, key):
         for entry in self.entries:
