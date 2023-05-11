@@ -4,6 +4,7 @@ from os import environ
 
 from .raft import kv_server, transport
 from .raft.election import Election
+from .raft.dur_log_exec import DurLogExecutor
 
 
 def main():
@@ -14,6 +15,8 @@ def main():
     kv_server_thread.start()
 
     election = Election()
+
+    dur_log_exec = DurLogExecutor()
 
     # TODO: remove this (test code)
     # print(f"*** WAITING 10 secs for servers, leader={environ['IS_LEADER']} ***")
