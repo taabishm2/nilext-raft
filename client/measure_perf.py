@@ -30,8 +30,8 @@ def measure_get(key):
 def run_put_exp():
     latencies, batch_throughputs = [], []
 
-    points = [1, 2, 6]
-    points.extend([i for i in range(10, 100, 10)])
+    points = [1, 2, 4, 6,8]
+    points.extend([i for i in range(10, 101, 3)])
     for thread_count in points:
         batch = []
         print(f"Collecting PUT stats with {thread_count} threads")
@@ -56,7 +56,7 @@ def run_get_exp():
     latencies, batch_throughputs = [], []
 
     points = [1, 2, 3, 4, 6, 8]
-    points.extend([i for i in range(10, 100, 10)])
+    points.extend([i for i in range(10, 100, 3)])
     # points.extend([i for i in range(100, 201, 20)]) 
     for thread_count in points:
         batch = []
@@ -80,7 +80,7 @@ def run_get_exp():
 def collect_stats(run_exp, NUM_SERVERS=3):
     throughputs, latencies = [], []
     x_range = []
-    for i in range(3):
+    for i in range(10):
         x_range, thrp, lat = run_exp()
         throughputs.append(thrp)
         latencies.append(lat)

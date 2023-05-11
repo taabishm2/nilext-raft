@@ -72,7 +72,7 @@ class DurLogManager:
         with self.lock:
             log_me(f"Adding {log_entry.request_type} Entry to Durability Log")
             self.entries.append(log_entry)
-            self.flush_log_to_disk()
+            # self.flush_log_to_disk()
 
     # Returns entry at head of queue without removing it from the queue
     def peek_head_entry(self):
@@ -96,6 +96,7 @@ class DurLogManager:
             log_file[str(log_file["SHELF_SIZE"])] = self.entries[-1]
             log_file["SHELF_SIZE"] += 1
         log_file.close()
+        return "just testing"
 
         # with open(RAFT_LOG_PATH, 'wb') as file:
         #     pickle.dump(self.entries, file)
