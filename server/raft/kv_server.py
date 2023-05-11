@@ -46,7 +46,7 @@ class KVStoreServicer(kvstore_pb2_grpc.KVStoreServicer):
         log_me(f"Put {request.key} {request.value}")
         dur_log_manager.append("PUT", request.key, request.value)
 
-        if request.is_nil_ext is not None and request.is_nil_ext == True:
+        if request.is_not_nil_ext is not None and request.is_not_nil_ext == True:
             is_consensus, error = raft_node.serve_put_request(request.key, request.value)
             if is_consensus: self.sync_kv_store_with_logs()
             else: error = "No consensus was reached. Try again."
