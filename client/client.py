@@ -2,6 +2,7 @@ import sys
 import grpc
 import random
 from time import sleep
+from datetime import datetime
 
 sys.path.append('../')
 
@@ -67,6 +68,12 @@ def send_put_ip(ip, key, val):
 
     return ip
 
+def send_put(key, val):
+    global NODE_IPS, LEADER_NAME
+
+    LEADER_IP = NODE_IPS[LEADER_NAME]
+    return send_put_ip(LEADER_IP, key, val)
+
 def send_nil_ext_put(key, val, logging=False):
     global NODE_IPS, LEADER_NAME
 
@@ -78,10 +85,11 @@ def send_nil_ext_put(key, val, logging=False):
 
     # supermajority = 𝑓 + ⌈𝑓 /2⌉ + 1
     ft =  len(NODE_IPS) // 2
-    supermajority = ft + ft // 2 + 1
-    # print(f"wait for supermajority {supermajority}")
+    supermajority = ft + (ft + 1) // 2 + 1
+    print(f"wait for supermajority {supermajority}")
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+        print(f"{datetime.now()}: Starting rpc")
         # Launch 10 tasks in parallel
         futures = [executor.submit(send_put_ip, ip, key, val) for ip in nodes]
 
@@ -97,6 +105,7 @@ def send_nil_ext_put(key, val, logging=False):
                     if result == LEADER_IP:
                         leader_sent = True
                     # print(f"Task {result} completed")
+                    print(f"{datetime.now()}: received from {result}")
                     completed_tasks += 1
                     done_ips.append(result)
 
@@ -166,15 +175,6 @@ if __name__ == '__main__':
 
     basic_consistency_test()
 
-    send_nil_ext_put("Key43", "Val34")
-    send_get("Key43")
-
-    send_nil_ext_put("Key1", "Val1")
-    send_get("Key1")
-    send_get("Key43")
-
-    # send_put("Key6", "Val6")
-    # send_get("Key6")
     print(f'Completed Client Process!')
 
 # def send_put(key, val):
