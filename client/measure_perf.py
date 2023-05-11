@@ -1,7 +1,9 @@
+import pickle
 import random
 import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from matplotlib import pyplot as plt
 from time import time
 
 import numpy as np
@@ -28,8 +30,8 @@ def measure_get(key):
 def run_put_exp():
     latencies, batch_throughputs = [], []
 
-    points = [1, 2, 4, 8]
-    points.extend([i for i in range(10, 101, 10)]) 
+    points = [1, 2, 6]
+    points.extend([i for i in range(10, 100, 10)])
     for thread_count in points:
         batch = []
         print(f"Collecting PUT stats with {thread_count} threads")
@@ -47,15 +49,15 @@ def run_put_exp():
         latencies.append((thread_count, batch))
 
     x, y = zip(*batch_throughputs)
-    latency_stats = [(np.percentile(i[1], 1), np.median(i[1]), np.percentile(i[1], 99)) for i in latencies]
+    latency_stats = [(np.median(i[1]), np.percentile(i[1], 99)) for i in latencies]
     return x, y, latency_stats
 
 def run_get_exp():
     latencies, batch_throughputs = [], []
 
-    points = [1, 2, 4, 8]
+    points = [1, 2, 3, 4, 6, 8]
     points.extend([i for i in range(10, 100, 10)])
-    points.extend([i for i in range(100, 501, 100)]) 
+    # points.extend([i for i in range(100, 201, 20)]) 
     for thread_count in points:
         batch = []
         print(f"Collecting GET stats with {thread_count} threads")
@@ -75,10 +77,11 @@ def run_get_exp():
     latency_stats = [(np.percentile(i[1], 1), np.median(i[1]), np.percentile(i[1], 99)) for i in latencies]
     return x, y, latency_stats
 
-def collect_stats(run_exp):
+def collect_stats(run_exp, NUM_SERVERS=3):
     throughputs, latencies = [], []
-    for i in range(2):
-        _, thrp, lat = run_exp()
+    x_range = []
+    for i in range(3):
+        x_range, thrp, lat = run_exp()
         throughputs.append(thrp)
         latencies.append(lat)
 
@@ -94,5 +97,54 @@ def collect_stats(run_exp):
     print("latencies", avg_lat)
     print("throughputs", avg_throughputs)
 
+    with open(f'plot_data/PUT-median-latency_num_clients.pickle', 'wb') as f:
+        pickle.dump((x_range, [y[0] for y in avg_lat]), f)
+
+    with open(f'plot_data/PUT-p99-latency_num_clients.pickle', 'wb') as f:
+        pickle.dump((x_range, [y[1] for y in avg_lat]), f)
+    
+    with open(f'plot_data/PUT-throughput_num_clients.pickle', 'wb') as f:
+        pickle.dump((x_range, avg_throughputs), f)
+
+def plot_put_data():
+    x_range, median_lat, p99_lat, avg_throughputs = [], [], [], []
+
+    with open(f'plot_data/PUT-median-latency_num_clients.pickle', 'rb') as f:
+        x_range, median_lat = pickle.load(f)
+    with open(f'plot_data/PUT-p99-latency_num_clients.pickle', 'rb') as f:
+        x_range, p99_lat = pickle.load(f)
+    with open(f'plot_data/PUT-throughput_num_clients.pickle', 'rb') as f:
+        x_range, avg_throughputs = pickle.load(f)
+
+    plt.figure(dpi=200)
+    plt.plot(x_range, median_lat, label="Median")
+    plt.plot(x_range, p99_lat, label="p99")
+    
+    plt.title("Latency vs num clients")
+    plt.xlabel("Num_clients")
+    plt.ylabel("Observed latency (sec)")
+    plt.legend()
+    plt.savefig(f'graphs/PUT-latency.png')
+    plt.clf()
+
+    plt.figure(dpi=200)
+    plt.plot(x_range, avg_throughputs)
+    
+    plt.title("Throughput vs num clients")
+    plt.xlabel("Num_clients")
+    plt.ylabel("Observed Throughput (Op/sec)")
+    plt.savefig(f'graphs/PUT-throughput.png')
+    plt.clf()
+
+    plt.figure(dpi=200)
+    plt.plot(avg_throughputs, median_lat)
+    
+    plt.title("Throughput vs Latency")
+    plt.xlabel("Throughput")
+    plt.ylabel("Latency")
+    plt.savefig(f'graphs/PUT-throughput-latency.png')
+    plt.clf()
+
 if __name__ == '__main__':
-    collect_stats(run_get_exp)
+    collect_stats(run_put_exp)
+    plot_put_data()

@@ -124,6 +124,8 @@ class LogManager:
             log_me("empty log")
             log_file["SHELF_SIZE"] = 0
         else:
+            if (len(self.entries) % 100) != 0:
+                return
             log_me("not empty log")
             log_me(f"entries {self.entries}")
             log_me(f"whole {log_file}")
