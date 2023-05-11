@@ -10,6 +10,7 @@ service KVStore {
 message PutRequest {
     string key=1;
     string value=2;
+    bool is_nil_ext=3;
 }
 
 message MultiPutRequest {
