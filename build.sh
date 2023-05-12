@@ -1,4 +1,5 @@
 # This file is to be used for local building, ie, without docker.
+sudo rm -rf ./logs/logcache/server*
 
 # build grpc files
 echo '|                             (0 of 5) Building kvstore.proto\r\c'
