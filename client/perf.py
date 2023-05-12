@@ -206,6 +206,45 @@ def collect_put_lat_thrp():
 
     print("Done")
 
+def collect_get_overhead_from_dur_log():
+    
+    x, y = [], []
+    
+    for put_count in range(0, 1000, 100):
+        batch = []
+        if put_count > 0:
+            with ThreadPoolExecutor(max_workers=put_count) as executor:
+                key = f"KEY-{random.randint(1, pow(10, 8))}"
+                future_calls = {executor.submit(
+                    perf_client.send_put, key, key) for _ in range(put_count)}
+                for completed_task in as_completed(future_calls):
+                    batch.append(completed_task.result())
+        
+        last_key_v = random.randrange(pow(10,9), pow(10,15))
+        key = f"KEY-{put_count}-{last_key_v}"
+        val = f"VAL-{put_count}-{last_key_v}"
+        
+        r = perf_client.send_put(key, val, True) 
+        print(f"Sent PUT {key}:{val}")
+
+        t1 = time.time()
+        resp = perf_client.send_get(key)
+        t = time.time() - t1
+        
+        print(f"GOT {key} {resp[1].key_exists}:{resp[1].value}")
+        assert resp[1].value == val
+    
+        x.append(put_count)
+        y.append(t)
+    
+    plt.plot(x, y)
+
+    plt.title("Durability log overhead")
+    plt.xlabel("Durability log size")
+    plt.ylabel("Read latency")
+    plt.savefig(f'graphs/durability-log-read-latency.png')
+    plt.clf()
+
 
 def plot_put_throughput():
     fl3 = f'data/3-server-PUT-parallel-throughputs.pickle'
@@ -951,7 +990,7 @@ if __name__ == "__main__":
     # collect_put_lat_thrp_nilext()
     # plot_put_latency_3_server()
     # plot_put_latency_3_server("-nilext")
-    plot_put_throughput_nilext()
+    # plot_put_throughput_nilext()
 
     # restart_cluster()
     # collect_put_lat_thrp_nr()
@@ -994,3 +1033,7 @@ if __name__ == "__main__":
     # plot_log_recovery_time()
     # plot_internal_latency()
     # plot_internal_call_distribution()
+    
+    
+    restart_cluster()
+    collect_get_overhead_from_dur_log()
