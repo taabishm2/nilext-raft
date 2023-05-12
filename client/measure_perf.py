@@ -11,7 +11,7 @@ import numpy as np
 
 import client
 
-NUM_OPS_PER_CLIENT = 10
+NUM_OPS_PER_CLIENT = 20
 
 sys.path.append('../')
 
@@ -42,9 +42,9 @@ def measure_get(key):
 def run_put_exp():
     latencies, batch_throughputs = [], []
 
-    points = [1, 2, 4, 8]
+    points = [1, 2, 4]
     # points = [1,2]
-    points.extend([i for i in range(10, 26, 2)])
+    points.extend([i for i in range(10, 31, 5)])
     # points.extend([i for i in range(10, 41, 10)])
     num_ops = 100
     for thread_count in points:
@@ -68,28 +68,33 @@ def run_put_exp():
     return x, y, latency_stats
 
 # Zipfian operation.
-def zipfian_op(write_per):
-    # Get key using zipfian distribution.
-    key = f'key-{np.random.choice(np.arange(1, 101), p=probs)}'
-    value = f'value-{random.randint(1, 1001)}'
+def zipfian_op(write_per): 
+    num_ops = 100
+    lat = []
 
-    # 
-    op_choice = np.random.randint(1, 101)
-    if op_choice < write_per:
-        print("write call")
-        # Perform write operation.
-        time1 = time()
-        client.send_nil_ext_put(key, value)
-        time2 = time()
+    for i in range(num_ops):
+        # Get key using zipfian distribution.
+        key = f'key-{np.random.choice(np.arange(1, 101), p=probs)}'
+        value = f'value-{random.randint(1, 1001)}'
 
-        return time2 - time1
-    else:
-        print("get call")
-        time1 = time()
-        client.send_get(key)
-        time2 = time()
+        op_choice = np.random.randint(1, 101)
+        if op_choice < write_per:
+            # print("write call")
+            # Perform write operation.
+            time1 = time()
+            client.send_put(key, value)
+            time2 = time()
 
-        return time2 - time1
+            lat.append(time2 - time1)
+        else:
+            # print("get call")
+            time1 = time()
+            client.send_get(key)
+            time2 = time()
+
+            lat.append(time2 - time1)
+
+    return lat
 
 # Zipfian operation.
 def uniform_op(write_per):
@@ -112,7 +117,7 @@ def run_mixed_exp():
     num_clients = 1
     num_ops = 100
 
-    points = [i for i in range(10, 101, 5)]
+    points = [i for i in range(10, 101, 10)]
     for write_per in points:
         batch = []
         print(f"Collecting Mixed stats for {write_per} percentage")
@@ -121,11 +126,12 @@ def run_mixed_exp():
             key = f"KEY-{random.randint(1, pow(10, 10))}"
             value = f"Value-{random.randint(1, pow(10, 10))}"
             t1 = time()
-            future_calls = {executor.submit(zipfian_op, write_per) for _ in range(num_ops)}
+            future_calls = {executor.submit(zipfian_op, write_per) for _ in range(num_clients)}
             for completed_task in as_completed(future_calls):
-                batch.append(completed_task.result())
+                batch.extend(completed_task.result())
             t2 = time()
-            batch_throughputs.append((write_per, num_ops / (t2 - t1)))
+            batch_throughputs.append((write_per, num_ops * num_clients / (t2 - t1)))
+            print(f"Throughput {batch_throughputs[-1]}")
         latencies.append((write_per, batch))
 
     x, y = zip(*batch_throughputs)
@@ -217,7 +223,7 @@ def plot_put_data(file_prefix):
     plt.clf()
 
     plt.figure(dpi=200)
-    plt.plot(avg_throughputs, median_lat)
+    plt.plot(avg_throughputs, median_lat, marker = 'D')
     
     plt.title("Throughput vs Latency")
     plt.xlabel("Throughput")
@@ -226,8 +232,8 @@ def plot_put_data(file_prefix):
     plt.clf()
 
 if __name__ == '__main__':
-    collect_stats(run_put_exp, "PUT")
-    plot_put_data("PUT")
+    # collect_stats(run_put_exp, "PUT")
+    # plot_put_data("PUT")
 
-    # collect_stats(run_mixed_exp, "MIXED")
-    # plot_put_data("MIXED")
+    collect_stats(run_mixed_exp, "MIXED")
+    plot_put_data("MIXED")
