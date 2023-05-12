@@ -11,7 +11,7 @@ import numpy as np
 
 import client
 
-NUM_OPS_PER_CLIENT = 20
+NUM_OPS_PER_CLIENT = 10
 
 sys.path.append('../')
 
@@ -42,10 +42,11 @@ def measure_get(key):
 def run_put_exp():
     latencies, batch_throughputs = [], []
 
-    # points = [1, 2, 3, 4, 6,8, 9]
-    points = [1,2]
-    # points.extend([i for i in range(10, 101, 10)])
-    points.extend([i for i in range(10, 21, 10)])
+    points = [1, 2, 4, 8]
+    # points = [1,2]
+    points.extend([i for i in range(10, 26, 2)])
+    # points.extend([i for i in range(10, 41, 10)])
+    num_ops = 100
     for thread_count in points:
         batch = []
         print(f"Collecting PUT stats with {thread_count} threads")
@@ -54,12 +55,12 @@ def run_put_exp():
             key = f"KEY-{random.randint(1, pow(10, 10))}"
             value = f"Value-{random.randint(1, pow(10, 10))}"
             t1 = time()
-            future_calls = {executor.submit(
-                measure_nil_ext_put, key, value) for _ in range(thread_count)}
+            future_calls = {executor.submit(measure_nil_ext_put, key, value) for _ in range(thread_count)}
             for completed_task in as_completed(future_calls):
                 batch.extend(completed_task.result())
             t2 = time()
             batch_throughputs.append((thread_count, thread_count * NUM_OPS_PER_CLIENT / (t2 - t1)))
+            print(f"got throughput {batch_throughputs[-1]}")
         latencies.append((thread_count, batch))
 
     x, y = zip(*batch_throughputs)
@@ -75,6 +76,7 @@ def zipfian_op(write_per):
     # 
     op_choice = np.random.randint(1, 101)
     if op_choice < write_per:
+        print("write call")
         # Perform write operation.
         time1 = time()
         client.send_nil_ext_put(key, value)
@@ -82,6 +84,7 @@ def zipfian_op(write_per):
 
         return time2 - time1
     else:
+        print("get call")
         time1 = time()
         client.send_get(key)
         time2 = time()
@@ -106,10 +109,10 @@ def run_mixed_exp():
     latencies, batch_throughputs = [], []
 
     # Fix num_clients = 10.
-    num_clients = 10
-    num_ops = 1000
+    num_clients = 1
+    num_ops = 100
 
-    points = [i for i in range(10, 21, 10)]
+    points = [i for i in range(10, 101, 5)]
     for write_per in points:
         batch = []
         print(f"Collecting Mixed stats for {write_per} percentage")
@@ -223,8 +226,8 @@ def plot_put_data(file_prefix):
     plt.clf()
 
 if __name__ == '__main__':
-    # collect_stats(run_put_exp, "PUT")
-    # plot_put_data("PUT")
+    collect_stats(run_put_exp, "PUT")
+    plot_put_data("PUT")
 
-    collect_stats(run_mixed_exp, "MIXED")
-    plot_put_data("MIXED")
+    # collect_stats(run_mixed_exp, "MIXED")
+    # plot_put_data("MIXED")

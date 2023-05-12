@@ -26,7 +26,7 @@ class RaftNode:
             log_me(f"Updating commit index for {key}")
             globals.set_commit_index(index)
             # Clear the entry pertaining to this request if present in my durability log
-            dur_log_manager.clear_entry_from_durable_log(key, value)
+            # dur_log_manager.clear_entry_from_durable_log(key, value)
 
         log_me(f"Finished PUT {key}:{value} request ")
 

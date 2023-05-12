@@ -35,17 +35,16 @@ class KVStoreServicer(kvstore_pb2_grpc.KVStoreServicer):
     def init_log_exec(self):
        #  Periodically execute entries from durability log.
         while True:
-            
             if globals.state == NodeRole.Leader:
                 pp = len(dur_log_manager.entries)
                 log_me(f"I am the leader, clearing out durability logs periodically")
                 # Start executing
-                entry = dur_log_manager.peek_head_entry()
+                entry = dur_log_manager.package_all_log()
                 if entry is not None:
-                    is_consensus, error = raft_node.serve_put_request(entry.key, entry.value)
+                    is_consensus, error = raft_node.serve_put_request(entry.key, entry.value, is_multi_cmd=True)
                     if is_consensus:
-                        #self.sync_kv_store_with_logs()
-                        dur_log_manager.pop_head_entry()
+                        self.sync_kv_store_with_logs()
+                        dur_log_manager.clear_all_entries()
                     else:
                         error = "No consensus was reached. Try again."
                         print(error)
@@ -116,27 +115,20 @@ class KVStoreServicer(kvstore_pb2_grpc.KVStoreServicer):
             return kvstore_pb2.GetResponse(key_exists=False, is_redirect=True, redirect_server=globals.leader_name)
 
         if (dur_log_manager.is_key_in_durable_log(request.key)):
-            # DO PUT WITH RAFT CONSENSUS!!!!
-            while(True):
-                entry = dur_log_manager.peek_head_entry()
-                is_consensus, error = raft_node.serve_put_request(entry.key, entry.value)
+            # Start executing
+            entry = dur_log_manager.package_all_log()
+            if entry is not None:
+                is_consensus, error = raft_node.serve_put_request(entry.key, entry.value, is_multi_cmd=True)
                 if is_consensus:
-                    self.sync_kv_store_with_logs()
-                    dur_log_manager.pop_head_entry()
+                    dur_log_manager.clear_all_entries()
                 else:
                     error = "No consensus was reached. Try again."
                     print(error)
-                    # what else to do here???? While will retry head again
-                    # return kvstore_pb2.GetResponse()
-                if (entry.key == request.key):
-                    # check if there are anymore entries in the durability log for this key
-                    print(f"Put key {request.key} from durability log with value {entry.value}")
-                    if (not dur_log_manager.is_key_in_durable_log(request.key)): break
 
         # Put for Entry already executed
-        print("Put for Entry executed===")
         # Can be done in a separate thread.
         self.sync_kv_store_with_logs()
+        log_me(f"Get call for {request.key} Sync done")
         if request.key == "FLUSH_CALL_STATS":
             stats.flush()
 

@@ -1,4 +1,4 @@
-import time
+from time import time,sleep
 import os
 import pickle
 import shelve
@@ -28,6 +28,7 @@ class DurLogManager:
         self.lock = Lock()
         self.entries = deque()  # Queue of DurLogEntry objects
         self.load_entries()  # Load entries from stable store to memory.
+        self.bloom = {}
         
         # self.log_exec_thread = Thread(target=self.init_log_exec)
         # self.log_exec_thread.start()
@@ -50,9 +51,10 @@ class DurLogManager:
         print("DurLogManager append: dur_log_mgr =\n")
         log_entry = DurLogEntry(request_type, key, value)
         with self.lock:
+            self.bloom[key] = 1
             log_me(f"Adding {log_entry.request_type} Entry to Durability Log")
             self.entries.append(log_entry)
-            # self.flush_log_to_disk()
+            self.flush_log_to_disk()
 
     # Returns entry at head of queue without removing it from the queue
     def peek_head_entry(self):
@@ -66,13 +68,15 @@ class DurLogManager:
         with self.lock:
             if len(self.entries) != 0:
                 self.entries.pop(0)
-            # self.flush_log_to_disk()
+            self.flush_log_to_disk()
 
     def package_all_log(self):
         all_key = []
         all_value = []
-        entry = DurLogEntry("PUT")
         with self.lock:
+            if len(self.entries) == 0:
+                return None
+
             for entry in self.entries:
                 all_key.append(entry.key)
                 all_value.append(entry.value)
@@ -80,6 +84,11 @@ class DurLogManager:
             return DurLogEntry("MULTI_PUT", json.dumps(all_key), json.dumps(all_value))
 
     def flush_log_to_disk(self):
+        if len(self.entries) > 0:
+            sleep(0.02)
+            return None
+
+        t1 = time()
         log_file = shelve.open(RAFT_LOG_PATH)
         log_me("opened shelf")
         if len(self.entries) == 0:
@@ -88,22 +97,24 @@ class DurLogManager:
             log_file[str(log_file["SHELF_SIZE"])] = self.entries[-1]
             log_file["SHELF_SIZE"] += 1
         log_file.close()
-        return "just testing"
+        t2 = time()
+        log_me(f"flush took {t2 - t1}")
 
     def is_key_in_durable_log(self, key):
-        for entry in self.entries:
-            if entry.key == key:
-                return True
-        return False
+        with self.lock:
+            return key in self.bloom
     
     def clear_entry_from_durable_log(self, key, value):
         log_entry = DurLogEntry("PUT", key, value)
         if (log_entry in self.entries):
             self.entries.remove(log_entry)
-            # with self.lock:
-            #     self.flush_log_to_disk()
+            with self.lock:
+                self.flush_log_to_disk()
 
     def clear_all_entries(self):
-        self.entries.clear()
+        with self.lock:
+            self.entries.clear()
+            self.flush_log_to_disk()
+            self.bloom = {}
 
 dur_log_manager = DurLogManager()
