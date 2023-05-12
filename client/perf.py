@@ -15,6 +15,7 @@ import numpy as np
 from math import factorial
 
 NUM_SERVERS = 5
+REP_COUNT = 20
 
 
 def restart_cluster(remove_logs=True):
@@ -209,24 +210,25 @@ def collect_put_lat_thrp():
 def collect_get_overhead_from_dur_log():
     
     x, y = [], []
-    
+    iter_v = random.randrange(0, pow(10,10))
+
     for put_count in range(0, 1000, 100):
+        print("PUT: ", put_count)
         batch = []
         if put_count > 0:
             with ThreadPoolExecutor(max_workers=put_count) as executor:
                 key = f"KEY-{random.randint(1, pow(10, 8))}"
                 future_calls = {executor.submit(
-                    perf_client.send_put, key, key) for _ in range(put_count)}
+                    perf_client.send_put, key, key, False) for _ in range(put_count)}
                 for completed_task in as_completed(future_calls):
                     batch.append(completed_task.result())
         
         last_key_v = random.randrange(pow(10,9), pow(10,15))
         key = f"KEY-{put_count}-{last_key_v}"
         val = f"VAL-{put_count}-{last_key_v}"
+    
         
-        time.sleep(1)
-        
-        r = perf_client.send_put(key, val, True) 
+        r = perf_client.send_put(key, val, False) 
         print(f"Sent PUT {key}:{val}")
 
         t1 = time.time()
@@ -246,6 +248,51 @@ def collect_get_overhead_from_dur_log():
     plt.ylabel("Read latency")
     plt.savefig(f'graphs/durability-log-read-latency.png')
     plt.clf()
+
+
+
+def collect_read_write_mix():
+    x, y = [], []
+    iter_k = random.randrange(0, pow(10,10))
+    
+    max_op_count = 100
+    window_step_size = 2
+    
+    done = set()
+    x, read_lat = [], []
+    for window_count in range(1, max_op_count, window_step_size):
+        print('WINDOW ', window_count)
+        reps = max_op_count//window_count
+        if reps in done: continue
+        done.add(reps)
+        
+        print(window_count, reps)
+        for w in range(window_count):
+            
+            read_lat_sample = []
+            for r in range(reps):
+                key = f"TTTT{iter_k}-{window_count}:{w}:{r}"
+                perf_client.send_put(key, key, False)
+                
+            for r in range(reps, -1, -1):
+                key = f"TTTT{iter_k}-{window_count}:{w}:{r}"
+                t1 = time.time()
+                perf_client.send_put(key, key)
+                read_lat_sample.append(time.time() - t1)
+        
+        x.append(window_count)
+        read_lat.append(np.median(read_lat_sample))
+        print(x, read_lat)
+                
+    plt.plot(x, read_lat, label="Read Lat")
+
+    plt.title("X")
+    plt.xlabel("Windows")
+    plt.ylabel("Read latency")
+    plt.savefig(f'graphs/test.png')
+    #plt.show()
+    plt.clf()
+
 
 
 def plot_put_throughput():
@@ -911,12 +958,15 @@ def smoothen(y, window_size, order, deriv=0, rate=1):
 
 def collect_put_lat_thrp_nilext():
     latencies, batch_throughputs = [], []
+    iter_k = random.randrange(0, pow(10,10))
     for thread_count in range(1, 500, 50):
-        restart_cluster()
+        print("LAT1 ", thread_count)
+        #restart_cluster()
+        #time.sleep(1)
         batch = []
-        print(f"Testing PUT with {thread_count} threads")
+
         with ThreadPoolExecutor(max_workers=thread_count) as executor:
-            key = f"KEY-{random.randint(1, pow(10, 10))}"
+            key = f"KEY{iter_k}-{random.randint(1, pow(10, 10))}"
             t1 = time.time()
             future_calls = {executor.submit(
                 perf_client.send_put, key, key, True) for _ in range(thread_count)}
@@ -924,15 +974,17 @@ def collect_put_lat_thrp_nilext():
                 batch.append(completed_task.result())
             t2 = time.time()
             batch_throughputs.append((thread_count, thread_count / (t2 - t1)))
+            
+            
         latencies.append((thread_count, batch))
         
     nilext_latencies, nilext_batch_throughputs = [], []
     for thread_count in range(1, 500, 50):
-        restart_cluster()
+        print("LAT2 ", thread_count)
         batch = []
         print(f"Testing NILEXT PUT with {thread_count} threads")
         with ThreadPoolExecutor(max_workers=thread_count) as executor:
-            key = f"KEY-{random.randint(1, pow(10, 10))}"
+            key = f"KEY{iter_k}-{random.randint(1, pow(10, 10))}"
             t1 = time.time()
             future_calls = {executor.submit(
                 perf_client.send_put, key, key, False) for _ in range(thread_count)}
@@ -958,8 +1010,7 @@ def collect_put_lat_thrp_nilext():
     with open(f'data/{NUM_SERVERS}-server-PUT-parallel-max-latency.pickle', 'wb') as f:
         pickle.dump((x, [y[3] for y in latencies]), f)
 
-    # # # Nilext
-
+    ### Nilext
     x, y = zip(*nilext_batch_throughputs)
     with open(f'data/{NUM_SERVERS}-server-nilext-PUT-parallel-throughputs.pickle', 'wb') as f:
         pickle.dump((x, y), f)
@@ -1036,6 +1087,14 @@ if __name__ == "__main__":
     # plot_internal_latency()
     # plot_internal_call_distribution()
     
+    # restart_cluster()
+    # collect_put_lat_thrp_nilext()
+    # plot_put_latency_3_server()
+    # plot_put_latency_3_server("-nilext")
+    # plot_put_throughput_nilext()
     
-    restart_cluster()
-    collect_get_overhead_from_dur_log()
+    # restart_cluster()
+    # collect_get_overhead_from_dur_log()
+    
+    # restart_cluster()
+    collect_read_write_mix()

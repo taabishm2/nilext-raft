@@ -13,6 +13,7 @@ from .node import raft_node
 from .utils import *
 from .stats import stats
 from threading import Thread
+import random
 
 sys.path.append('../../')
 import kvstore_pb2
@@ -69,16 +70,17 @@ class KVStoreServicer(kvstore_pb2_grpc.KVStoreServicer):
 
     def Put(self, request, context):
         log_me(f"Put {request.key} {request.value}")
-        dur_log_manager.append("PUT", request.key, request.value)
 
         if request.is_non_nil_ext is not None and request.is_non_nil_ext == True:
-            print(" **** EXECUTED NON NIL EXT ******")
+            #print(" **** EXECUTED NON NIL EXT ******")
             is_consensus, error = raft_node.serve_put_request(request.key, request.value)
             if is_consensus: self.sync_kv_store_with_logs()
             else: error = "No consensus was reached. Try again."
             return kvstore_pb2.PutResponse(error=error)
         else:
-            print(" **** EXECUTED NIL EXT ******")
+            #print(" **** EXECUTED NIL EXT ******")
+            time.sleep(random.uniform(0.01, 0.011))
+            dur_log_manager.append("PUT", request.key, request.value)
             return kvstore_pb2.PutResponse()
 
     # Not supported with Nil-ext at the moment
@@ -125,12 +127,12 @@ class KVStoreServicer(kvstore_pb2_grpc.KVStoreServicer):
                     error = "No consensus was reached. Try again."
                     print(error)
 
-        # Put for Entry already executed
-        # Can be done in a separate thread.
-        self.sync_kv_store_with_logs()
-        log_me(f"Get call for {request.key} Sync done")
-        if request.key == "FLUSH_CALL_STATS":
-            stats.flush()
+            # Put for Entry already executed
+            # Can be done in a separate thread.
+            self.sync_kv_store_with_logs()
+            log_me(f"Get call for {request.key} Sync done")
+            if request.key == "FLUSH_CALL_STATS":
+                stats.flush()
 
         with self.kv_store_lock:
             cached_val = self.client.get(request.key)

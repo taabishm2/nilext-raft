@@ -4,6 +4,7 @@ from .transport import transport
 from .log_manager import *
 from .stats import stats
 from .dur_log_manager import dur_log_manager
+import random
 
 # from .election import *
 
@@ -14,6 +15,7 @@ class RaftNode:
         """Returns tuple: (success (bool), error message) TODO: Redirect to leader node."""
         log_item = LogEntry(globals.current_term, key, value, is_multi_cmd)
 
+        time.sleep(random.uniform(0.01,0.011))
         index = log_manager.append(log_item)
         log_me("Finished append")
 

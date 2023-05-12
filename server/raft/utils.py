@@ -20,4 +20,5 @@ def log_me(log: str):
     # # Add a print lock?
     # # return
     # pass
-    print(f"[LOG]: {datetime.now()} {log}")
+    #print(f"[LOG]: {datetime.now()} {log}")
+    pass
