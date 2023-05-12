@@ -84,10 +84,6 @@ class DurLogManager:
             return DurLogEntry("MULTI_PUT", json.dumps(all_key), json.dumps(all_value))
 
     def flush_log_to_disk(self):
-        if len(self.entries) > 0:
-            sleep(0.02)
-            return None
-
         t1 = time()
         log_file = shelve.open(RAFT_LOG_PATH)
         log_me("opened shelf")
