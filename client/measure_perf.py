@@ -5,12 +5,19 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from matplotlib import pyplot as plt
 from time import time
+import random
 
 import numpy as np
 
 import client
 
 sys.path.append('../')
+
+# Calculate the harmonic series
+H = np.sum(1.0 / np.arange(1, 101))
+
+# Calculate the probabilities of each value based on the Zipfian distribution
+probs = 1.0 / (np.arange(1, 101) * H)
 
 
 def measure_nil_ext_put(key, val):
@@ -47,6 +54,61 @@ def run_put_exp():
             t2 = time()
             batch_throughputs.append((thread_count, thread_count / (t2 - t1)))
         latencies.append((thread_count, batch))
+
+    x, y = zip(*batch_throughputs)
+    latency_stats = [(np.median(i[1]), np.percentile(i[1], 99)) for i in latencies]
+    return x, y, latency_stats
+
+# Zipfian operation.
+def zipfian_op(write_per):
+    # Get key using zipfian distribution.
+    key = f'key-{np.random.choice(np.arange(1, 101), p=probs)}'
+    value = f'value-{random.randint(1, 1001)}'
+
+    # 
+    op_choice = np.random.randint(1, 101)
+    if op_choice < write_per:
+        # Perform write operation.
+        return measure_nil_ext_put(key, value)
+    else:
+        return measure_get(key)
+
+# Zipfian operation.
+def uniform_op(write_per):
+    # Get key using zipfian distribution.
+    key = f'key-{random.randint(1, 101)}'
+    value = f'value-{random.randint(1, 1001)}'
+
+    # 
+    op_choice = np.random.randint(1, 101)
+    if op_choice < write_per:
+        # Perform write operation.
+        return measure_nil_ext_put(key, value)
+    else:
+        return measure_get(key)
+
+def run_mixed_exp():
+    latencies, batch_throughputs = [], []
+
+    # Fix num_clients = 10.
+    num_clients = 10
+    num_ops = 1000
+
+    points = [i for i in range(10, 101, 10)]
+    for write_per in points:
+        batch = []
+        print(f"Collecting Mixed stats for {write_per} percentage")
+
+        with ThreadPoolExecutor(max_workers=num_clients) as executor:
+            key = f"KEY-{random.randint(1, pow(10, 10))}"
+            value = f"Value-{random.randint(1, pow(10, 10))}"
+            t1 = time()
+            future_calls = {executor.submit(zipfian_op, write_per) for _ in range(num_ops)}
+            for completed_task in as_completed(future_calls):
+                batch.append(completed_task.result())
+            t2 = time()
+            batch_throughputs.append((write_per, num_ops / (t2 - t1)))
+        latencies.append((write_per, batch))
 
     x, y = zip(*batch_throughputs)
     latency_stats = [(np.median(i[1]), np.percentile(i[1], 99)) for i in latencies]
