@@ -256,7 +256,7 @@ def collect_read_write_mix():
     iter_k = random.randrange(0, pow(10,10))
     
     max_op_count = 100
-    window_step_size = 2
+    window_step_size = 1
     
     done = set()
     x, read_lat = [], []
@@ -274,10 +274,10 @@ def collect_read_write_mix():
                 key = f"TTTT{iter_k}-{window_count}:{w}:{r}"
                 perf_client.send_put(key, key, False)
                 
-            for r in range(reps, -1, -1):
+            for r in range(reps):
                 key = f"TTTT{iter_k}-{window_count}:{w}:{r}"
                 t1 = time.time()
-                perf_client.send_put(key, key)
+                perf_client.send_get(key)
                 read_lat_sample.append(time.time() - t1)
         
         x.append(window_count)
