@@ -5,6 +5,7 @@ import shelve
 from threading import Lock
 from threading import Thread
 from collections import deque
+import json
 
 from .config import NodeRole, globals
 # from .node import raft_node
@@ -45,27 +46,6 @@ class DurLogManager:
         log_me(f'Loaded {num_entries} log entries from disk')
         log_shelf.close()
 
-        # with open(RAFT_LOG_PATH, "rb") as log_file:
-        #     self.entries = pickle.load(log_file)
-
-    def init_log_exec(self):
-        #  Periodically execute entries from durability log.
-        while True:
-            if globals.state == NodeRole.Leader:
-                log_me(f"I am the leader, clearing out durability logs periodically")
-                # Start executing
-                entry = dur_log_manager.peek_head_entry()
-                if entry is not None:
-                    is_consensus, error = raft_node.serve_put_request(entry.key, entry.value)
-                    if is_consensus:
-                        self.sync_kv_store_with_logs()
-                        dur_log_manager.pop_head_entry()
-                    else:
-                        error = "No consensus was reached. Try again."
-                        print(error)
-
-            time.sleep(1.5)
-
     def append(self, request_type, key, value):
         print("DurLogManager append: dur_log_mgr =\n")
         log_entry = DurLogEntry(request_type, key, value)
@@ -84,8 +64,20 @@ class DurLogManager:
     # Call this once request at head has been executed (after consensus, if relevant)
     def pop_head_entry(self):
         with self.lock:
-            self.entries.pop(0)
-            self.flush_log_to_disk()
+            if len(self.entries) != 0:
+                self.entries.pop(0)
+            # self.flush_log_to_disk()
+
+    def package_all_log(self):
+        all_key = []
+        all_value = []
+        entry = DurLogEntry("PUT")
+        with self.lock:
+            for entry in self.entries:
+                all_key.append(entry.key)
+                all_value.append(entry.value)
+
+            return DurLogEntry("MULTI_PUT", json.dumps(all_key), json.dumps(all_value))
 
     def flush_log_to_disk(self):
         log_file = shelve.open(RAFT_LOG_PATH)
@@ -98,9 +90,6 @@ class DurLogManager:
         log_file.close()
         return "just testing"
 
-        # with open(RAFT_LOG_PATH, 'wb') as file:
-        #     pickle.dump(self.entries, file)
-
     def is_key_in_durable_log(self, key):
         for entry in self.entries:
             if entry.key == key:
@@ -111,7 +100,10 @@ class DurLogManager:
         log_entry = DurLogEntry("PUT", key, value)
         if (log_entry in self.entries):
             self.entries.remove(log_entry)
-            with self.lock:
-                self.flush_log_to_disk()
+            # with self.lock:
+            #     self.flush_log_to_disk()
+
+    def clear_all_entries(self):
+        self.entries.clear()
 
 dur_log_manager = DurLogManager()

@@ -86,10 +86,10 @@ def send_nil_ext_put(key, val, logging=False):
     # supermajority = 𝑓 + ⌈𝑓 /2⌉ + 1
     ft =  len(NODE_IPS) // 2
     supermajority = ft + (ft + 1) // 2 + 1
-    print(f"wait for supermajority {supermajority}")
+    # print(f"wait for supermajority {supermajority}")
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-        print(f"{datetime.now()}: Starting rpc")
+        # print(f"{datetime.now()}: Starting rpc")
         # Launch 10 tasks in parallel
         futures = [executor.submit(send_put_ip, ip, key, val) for ip in nodes]
 
@@ -105,7 +105,7 @@ def send_nil_ext_put(key, val, logging=False):
                     if result == LEADER_IP:
                         leader_sent = True
                     # print(f"Task {result} completed")
-                    print(f"{datetime.now()}: received from {result}")
+                    # print(f"{datetime.now()}: received from {result}")
                     completed_tasks += 1
                     done_ips.append(result)
 

@@ -22,11 +22,11 @@ def nil_ext_put(key, val):
 if __name__ == "__main__":
     lat = []
     time1 = time()
-    for i in range(100):
+    for i in range(50):
         a = nil_ext_put("1", "1")
         lat.append(a)
     time2 = time()
 
     latency_stats = [np.median(lat), np.percentile(lat, 99)]
     print("latency stats", latency_stats)
-    print("throughput", 100.0 / (time2 - time1))
+    print("throughput", 50.0 / (time2 - time1))
