@@ -30,7 +30,7 @@ class DurLogExecutor:
                 if entry is not None:
                     is_consensus, error = raft_node.serve_put_request(entry.key, entry.value)
                     if is_consensus:
-                        self.sync_kv_store_with_logs()
+                        #self.sync_kv_store_with_logs()
                         dur_log_manager.pop_head_entry()
                     else:
                         error = "No consensus was reached. Try again."

@@ -224,6 +224,8 @@ def collect_get_overhead_from_dur_log():
         key = f"KEY-{put_count}-{last_key_v}"
         val = f"VAL-{put_count}-{last_key_v}"
         
+        time.sleep(1)
+        
         r = perf_client.send_put(key, val, True) 
         print(f"Sent PUT {key}:{val}")
 

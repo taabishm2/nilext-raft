@@ -16,7 +16,7 @@ def main():
 
     election = Election()
 
-    dur_log_exec = DurLogExecutor()
+    # dur_log_exec = DurLogExecutor()
 
     # TODO: remove this (test code)
     # print(f"*** WAITING 10 secs for servers, leader={environ['IS_LEADER']} ***")

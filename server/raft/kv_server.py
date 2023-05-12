@@ -12,6 +12,7 @@ from .dur_log_manager import dur_log_manager
 from .node import raft_node
 from .utils import *
 from .stats import stats
+from threading import Thread
 
 sys.path.append('../../')
 import kvstore_pb2
@@ -26,6 +27,31 @@ class KVStoreServicer(kvstore_pb2_grpc.KVStoreServicer):
         self.kv_store_lock = threading.Lock()
         self.client = base.Client(('localhost', 11211))
         self.sync_kv_store_with_logs()
+        
+        self.log_exec_thread = Thread(target=self.init_log_exec)
+        self.log_exec_thread.start()
+        
+    
+    def init_log_exec(self):
+       #  Periodically execute entries from durability log.
+        while True:
+            
+            if globals.state == NodeRole.Leader:
+                pp = len(dur_log_manager.entries)
+                log_me(f"I am the leader, clearing out durability logs periodically")
+                # Start executing
+                entry = dur_log_manager.peek_head_entry()
+                if entry is not None:
+                    is_consensus, error = raft_node.serve_put_request(entry.key, entry.value)
+                    if is_consensus:
+                        #self.sync_kv_store_with_logs()
+                        dur_log_manager.pop_head_entry()
+                    else:
+                        error = "No consensus was reached. Try again."
+                        print(error)
+
+                if pp > 0: print(f"After clearing - {pp} -> {len(dur_log_manager.entries)}")
+            time.sleep(0.5)
 
     def sync_kv_store_with_logs(self):
         log_me(f"Syncing kvstore, from {globals.lastApplied} to {globals.commitIndex+1}")
@@ -47,11 +73,13 @@ class KVStoreServicer(kvstore_pb2_grpc.KVStoreServicer):
         dur_log_manager.append("PUT", request.key, request.value)
 
         if request.is_non_nil_ext is not None and request.is_non_nil_ext == True:
+            print(" **** EXECUTED NON NIL EXT ******")
             is_consensus, error = raft_node.serve_put_request(request.key, request.value)
             if is_consensus: self.sync_kv_store_with_logs()
             else: error = "No consensus was reached. Try again."
             return kvstore_pb2.PutResponse(error=error)
         else:
+            print(" **** EXECUTED NIL EXT ******")
             return kvstore_pb2.PutResponse()
 
     # Not supported with Nil-ext at the moment
