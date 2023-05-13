@@ -135,7 +135,7 @@ def run_mixed_exp():
         latencies.append((write_per, batch))
 
     x, y = zip(*batch_throughputs)
-    latency_stats = [(np.median(i[1]), np.percentile(i[1], 99)) for i in latencies]
+    latency_stats = [(np.mean(i[1]), np.percentile(i[1], 99)) for i in latencies]
     return x, y, latency_stats
 
 def run_get_exp():
@@ -183,7 +183,7 @@ def collect_stats(run_exp, file_prefix, NUM_SERVERS=3):
     print("latencies", avg_lat)
     print("throughputs", avg_throughputs)
 
-    with open(f'plot_data/{file_prefix}-median-latency_num_clients.pickle', 'wb') as f:
+    with open(f'plot_data/{file_prefix}-mean-latency_num_clients.pickle', 'wb') as f:
         pickle.dump((x_range, [y[0] for y in avg_lat]), f)
 
     with open(f'plot_data/{file_prefix}-p99-latency_num_clients.pickle', 'wb') as f:
@@ -195,7 +195,7 @@ def collect_stats(run_exp, file_prefix, NUM_SERVERS=3):
 def plot_put_data(file_prefix):
     x_range, median_lat, p99_lat, avg_throughputs = [], [], [], []
 
-    with open(f'plot_data/{file_prefix}-median-latency_num_clients.pickle', 'rb') as f:
+    with open(f'plot_data/{file_prefix}-mean-latency_num_clients.pickle', 'rb') as f:
         x_range, median_lat = pickle.load(f)
     with open(f'plot_data/{file_prefix}-p99-latency_num_clients.pickle', 'rb') as f:
         x_range, p99_lat = pickle.load(f)
