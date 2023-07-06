@@ -7,8 +7,8 @@
 * Conclude which workloads exploit Nil-Ext interface and which don’t.
 
 # Architecture
-![Arch](./3-ia.png)
+![Arch](./tests/3-ia.png)
 
 # Benchmarking
-![Arch](./3-it.png)
-![Arch](./3-i1.png)
+![Arch](./tests/3-it.png)
+![Arch](./tests/3-i1.png)
